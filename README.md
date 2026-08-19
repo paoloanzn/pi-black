@@ -6,7 +6,7 @@ Pi Black is an unofficial Pi package that routes Anthropic OAuth requests throug
 
 ## Install
 
-Pi Black is pinned to Pi 0.84.1 and fails closed on other Pi versions.
+Pi Black is pinned to Pi 0.84.2 and fails closed on other Pi versions.
 
 ```sh
 pi install git:github.com/paoloanzn/pi-black

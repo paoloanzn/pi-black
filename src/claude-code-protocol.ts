@@ -9,7 +9,7 @@ import type {
 	StreamOptions,
 } from "@earendil-works/pi-ai";
 
-export const SUPPORTED_PI_VERSION = "0.84.1";
+export const SUPPORTED_PI_VERSION = "0.84.2";
 export const CLAUDE_CODE_VERSION = "2.1.224";
 export const CLAUDE_CODE_ENTRYPOINT = "sdk-cli";
 
