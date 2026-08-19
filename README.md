@@ -29,7 +29,7 @@ pi update --extensions
 For a reproducible install, pin a release tag:
 
 ```sh
-pi install git:github.com/paoloanzn/pi-black@v0.84.1-cc2.1.224.4
+pi install git:github.com/paoloanzn/pi-black@v0.84.1-cc2.1.224.5
 ```
 
 Pinned packages do not move automatically. Install a newer tagged ref explicitly when you are ready to upgrade.
@@ -83,7 +83,7 @@ The installed launcher checks the latest release checksum at interactive startup
 Install a specific standalone release with `PI_BLACK_RELEASE`:
 
 ```sh
-curl -fsSL https://github.com/paoloanzn/pi-black/releases/latest/download/install.sh | PI_BLACK_RELEASE=v0.84.1-cc2.1.224.4 sh
+curl -fsSL https://github.com/paoloanzn/pi-black/releases/latest/download/install.sh | PI_BLACK_RELEASE=v0.84.1-cc2.1.224.5 sh
 ```
 
 The repository pins an immutable commit from [`paoloanzn/pi`](https://github.com/paoloanzn/pi), applies the patch under `patches/`, and delegates standalone compilation to Pi's release builder.
