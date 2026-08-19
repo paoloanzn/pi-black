@@ -1,15 +1,16 @@
 import { builtinProviders } from "@earendil-works/pi-ai/providers/all";
 import { type ExtensionAPI, VERSION } from "@earendil-works/pi-coding-agent";
 import { wrapAnthropicProvider } from "../src/anthropic-provider.ts";
+import { discoverClaudeCodeIdentity } from "../src/claude-code-protocol.ts";
 import {
-	discoverClaudeCodeIdentity,
-	SUPPORTED_PI_VERSION,
-} from "../src/claude-code-protocol.ts";
+	isSupportedPiVersion,
+	SUPPORTED_PI_VERSIONS,
+} from "../src/compatibility.ts";
 
 export default function piBlack(pi: ExtensionAPI): void {
-	if (VERSION !== SUPPORTED_PI_VERSION) {
+	if (!isSupportedPiVersion(VERSION)) {
 		throw new Error(
-			`Pi Black supports Pi ${SUPPORTED_PI_VERSION}; running Pi is ${VERSION}`,
+			`Pi Black supports Pi ${SUPPORTED_PI_VERSIONS.join(", ")}; running Pi is ${VERSION}`,
 		);
 	}
 	const anthropic = builtinProviders().find(

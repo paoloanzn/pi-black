@@ -6,7 +6,15 @@ Pi Black is an unofficial Pi package that routes Anthropic OAuth requests throug
 
 ## Install
 
-Pi Black is pinned to Pi 0.84.1 and fails closed on other Pi versions.
+Pi Black has three independently versioned compatibility surfaces:
+
+| Component | Compatible version |
+| --- | --- |
+| Pi package | Pi 0.84.1 and 0.84.2 |
+| Standalone `pi-black` binary | Based on Pi 0.84.1 |
+| Claude Code protocol | 2.1.224 |
+
+The Pi package fails closed on versions other than 0.84.1 and 0.84.2. Each new Pi version must be explicitly revalidated and added to the runtime allowlist; the package peer dependencies are `"*"` because Pi supplies its core packages at runtime.
 
 ```sh
 pi install git:github.com/paoloanzn/pi-black
