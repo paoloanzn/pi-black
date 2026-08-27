@@ -1,4 +1,4 @@
-export const SUPPORTED_PI_VERSIONS = ["0.84.1", "0.84.2"] as const;
+export const SUPPORTED_PI_VERSIONS = ["0.84.1", "0.84.2", "0.84.3"] as const;
 
 export type SupportedPiVersion = (typeof SUPPORTED_PI_VERSIONS)[number];
 
