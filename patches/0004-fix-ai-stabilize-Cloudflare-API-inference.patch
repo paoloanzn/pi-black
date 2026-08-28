@@ -1,0 +1,25 @@
+From f0b3aeb865e148f5e83f6ad1ad14c585a6a02820 Mon Sep 17 00:00:00 2001
+From: Paolo Anzani <paoloanzn@gmail.com>
+Date: Fri, 28 Aug 2026 09:11:07 +0800
+Subject: [PATCH] fix(ai): stabilize Cloudflare API inference
+
+---
+ packages/ai/src/providers/cloudflare-ai-gateway.ts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/packages/ai/src/providers/cloudflare-ai-gateway.ts b/packages/ai/src/providers/cloudflare-ai-gateway.ts
+index 50c10569..d3a1c730 100644
+--- a/packages/ai/src/providers/cloudflare-ai-gateway.ts
++++ b/packages/ai/src/providers/cloudflare-ai-gateway.ts
+@@ -9,7 +9,7 @@ import { cloudflareStreams } from "./cloudflare-stream.ts";
+ export function cloudflareAIGatewayProvider(): Provider<
+ 	"anthropic-messages" | "openai-completions" | "openai-responses"
+ > {
+-	return createProvider({
++	return createProvider<"anthropic-messages" | "openai-completions" | "openai-responses">({
+ 		id: "cloudflare-ai-gateway",
+ 		name: "Cloudflare AI Gateway",
+ 		auth: { apiKey: cloudflareAIGatewayAuth() },
+-- 
+2.39.5 (Apple Git-154)
+
