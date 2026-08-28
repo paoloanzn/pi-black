@@ -24,7 +24,7 @@ describe("Pi Black extension", () => {
 	});
 
 	it("fails closed for Pi versions that have not been validated", () => {
-		expect(SUPPORTED_PI_VERSIONS).toEqual(["0.84.1", "0.84.2"]);
-		expect(isSupportedPiVersion("0.84.3")).toBe(false);
+		expect(SUPPORTED_PI_VERSIONS).toEqual(["0.84.1", "0.84.2", "0.84.3"]);
+		expect(isSupportedPiVersion("0.84.4")).toBe(false);
 	});
 });
