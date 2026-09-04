@@ -26,6 +26,7 @@ jobs:
           - '0.84.1'
           - '0.84.2'
           - '0.84.3'
+          - '0.84.4'
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
