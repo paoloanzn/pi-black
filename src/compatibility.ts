@@ -1,9 +1,23 @@
-export const SUPPORTED_PI_VERSIONS = ["0.84.1", "0.84.2", "0.84.3"] as const;
+export const MINIMUM_SUPPORTED_PI_VERSION = "0.84.1";
 
-export type SupportedPiVersion = (typeof SUPPORTED_PI_VERSIONS)[number];
+type StableVersion = readonly [number, number, number];
 
-export function isSupportedPiVersion(
-	version: string,
-): version is SupportedPiVersion {
-	return (SUPPORTED_PI_VERSIONS as readonly string[]).includes(version);
+function parseStableVersion(version: string): StableVersion | undefined {
+	const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
+	if (!match) return undefined;
+
+	const parsed = [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+	return parsed.every(Number.isSafeInteger) ? parsed : undefined;
+}
+
+export function isSupportedPiVersion(version: string): boolean {
+	const candidate = parseStableVersion(version);
+	const minimum = parseStableVersion(MINIMUM_SUPPORTED_PI_VERSION);
+	if (!candidate || !minimum) return false;
+
+	for (let index = 0; index < candidate.length; index++) {
+		if (candidate[index] > minimum[index]) return true;
+		if (candidate[index] < minimum[index]) return false;
+	}
+	return true;
 }

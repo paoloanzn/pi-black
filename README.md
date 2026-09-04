@@ -10,11 +10,11 @@ Pi Black has three independently versioned compatibility surfaces:
 
 | Component | Compatible version |
 | --- | --- |
-| Pi package | Pi 0.84.1, 0.84.2, and 0.84.3 |
+| Pi package | Pi 0.84.1 or newer |
 | Standalone `pi-black` binary | Based on Pi 0.84.1 |
 | Claude Code protocol | 2.1.224 |
 
-The Pi package fails closed on versions other than 0.84.1, 0.84.2, and 0.84.3. Each new Pi version must be explicitly revalidated and added to the runtime allowlist; the package peer dependencies are `"*"` because Pi supplies its core packages at runtime.
+The Pi package requires Pi 0.84.1 or newer, with no upper version limit. Future Pi releases are trusted until an incompatibility is identified; the package peer dependencies are `"*"` because Pi supplies its core packages at runtime.
 
 ```sh
 pi install git:github.com/paoloanzn/pi-black

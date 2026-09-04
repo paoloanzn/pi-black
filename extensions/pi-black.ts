@@ -4,13 +4,13 @@ import { wrapAnthropicProvider } from "../src/anthropic-provider.ts";
 import { discoverClaudeCodeIdentity } from "../src/claude-code-protocol.ts";
 import {
 	isSupportedPiVersion,
-	SUPPORTED_PI_VERSIONS,
+	MINIMUM_SUPPORTED_PI_VERSION,
 } from "../src/compatibility.ts";
 
 export default function piBlack(pi: ExtensionAPI): void {
 	if (!isSupportedPiVersion(VERSION)) {
 		throw new Error(
-			`Pi Black supports Pi ${SUPPORTED_PI_VERSIONS.join(", ")}; running Pi is ${VERSION}`,
+			`Pi Black requires Pi ${MINIMUM_SUPPORTED_PI_VERSION} or newer; running Pi is ${VERSION}`,
 		);
 	}
 	const anthropic = builtinProviders().find(

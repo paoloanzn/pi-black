@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import piBlack from "../extensions/pi-black.ts";
 import {
 	isSupportedPiVersion,
-	SUPPORTED_PI_VERSIONS,
+	MINIMUM_SUPPORTED_PI_VERSION,
 } from "../src/compatibility.ts";
 
 describe("Pi Black extension", () => {
@@ -23,8 +23,20 @@ describe("Pi Black extension", () => {
 		expect(registerProvider.mock.calls[0][0].id).toBe("anthropic");
 	});
 
-	it("fails closed for Pi versions that have not been validated", () => {
-		expect(SUPPORTED_PI_VERSIONS).toEqual(["0.84.1", "0.84.2", "0.84.3"]);
-		expect(isSupportedPiVersion("0.84.4")).toBe(false);
+	it("supports the minimum Pi version and newer stable versions", () => {
+		expect(MINIMUM_SUPPORTED_PI_VERSION).toBe("0.84.1");
+		for (const version of ["0.84.1", "0.84.4", "0.85.0", "1.0.0"])
+			expect(isSupportedPiVersion(version)).toBe(true);
+	});
+
+	it("rejects Pi versions below the minimum or with an invalid format", () => {
+		for (const version of [
+			"0.83.999",
+			"0.84.0",
+			"0.84",
+			"0.84.1-beta.1",
+			"invalid",
+		])
+			expect(isSupportedPiVersion(version)).toBe(false);
 	});
 });
