@@ -9,6 +9,7 @@ import type {
 } from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import { wrapAnthropicProvider } from "../src/anthropic-provider.ts";
+import { CLAUDE_CODE_VERSION } from "../src/claude-code-protocol.ts";
 
 const context: Context = {
 	systemPrompt: "Pi system",
@@ -104,7 +105,7 @@ describe("Anthropic provider wrapper", () => {
 			"You are a Claude agent, built on Anthropic's Claude Agent SDK.",
 		);
 		expect(options?.headers).toMatchObject({
-			"user-agent": "claude-cli/2.1.224 (external, sdk-cli)",
+			"user-agent": `claude-cli/${CLAUDE_CODE_VERSION} (external, sdk-cli)`,
 			"x-app": "cli",
 			"x-claude-code-session-id": "11111111-2222-4333-8444-555555555555",
 		});
