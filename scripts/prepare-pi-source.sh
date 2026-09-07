@@ -47,4 +47,11 @@ if [[ "$actual_patched" != "$PI_PATCHED_COMMIT" ]]; then
     exit 1
 fi
 
+for protocol_source in "$repo_root/src/claude-code-protocol.ts" "$destination/packages/ai/src/api/anthropic-claude-code.ts"; do
+    if ! grep -Fxq "export const CLAUDE_CODE_VERSION = \"$CLAUDE_CODE_PROTOCOL_VERSION\";" "$protocol_source"; then
+        echo "Claude Code protocol in $protocol_source does not match $CLAUDE_CODE_PROTOCOL_VERSION" >&2
+        exit 1
+    fi
+done
+
 printf 'Prepared Pi %s\nBase:    %s\nPatched: %s\n' "$PI_VERSION" "$actual_series_base" "$actual_patched"

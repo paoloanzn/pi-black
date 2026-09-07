@@ -1,0 +1,59 @@
+From 2ca56f37be32f15183720b22dc90ccbc69d41a63 Mon Sep 17 00:00:00 2001
+From: Pi OAuth Compatibility Maintainers <noreply@example.invalid>
+Date: Mon, 7 Sep 2026 15:14:08 +0200
+Subject: [PATCH] fix(ai): update Claude Code protocol to 2.1.258
+
+---
+ packages/ai/src/api/anthropic-claude-code.ts   | 2 +-
+ packages/ai/test/anthropic-auth-token.test.ts  | 4 ++--
+ packages/ai/test/anthropic-claude-code.test.ts | 4 ++--
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/packages/ai/src/api/anthropic-claude-code.ts b/packages/ai/src/api/anthropic-claude-code.ts
+index 438312e0..8401361b 100644
+--- a/packages/ai/src/api/anthropic-claude-code.ts
++++ b/packages/ai/src/api/anthropic-claude-code.ts
+@@ -1,6 +1,6 @@
+ import type { FetchFunction, Message } from "../types.ts";
+ 
+-export const CLAUDE_CODE_VERSION = "2.1.224";
++export const CLAUDE_CODE_VERSION = "2.1.258";
+ export const CLAUDE_CODE_ENTRYPOINT = "sdk-cli";
+ 
+ const CCH_PLACEHOLDER = "cch=00000";
+diff --git a/packages/ai/test/anthropic-auth-token.test.ts b/packages/ai/test/anthropic-auth-token.test.ts
+index 69ec26f2..29e8f9f8 100644
+--- a/packages/ai/test/anthropic-auth-token.test.ts
++++ b/packages/ai/test/anthropic-auth-token.test.ts
+@@ -166,10 +166,10 @@ describe("Anthropic auth token env", () => {
+ 		expect(mockState.constructorOpts?.authToken).toBe("sk-ant-oat-test");
+ 		const headers = mockState.constructorOpts?.defaultHeaders as Record<string, string>;
+ 		expect(headers["anthropic-beta"]).toContain("oauth-2025-04-20");
+-		expect(headers["user-agent"]).toBe("claude-cli/2.1.224 (external, sdk-cli)");
++		expect(headers["user-agent"]).toBe("claude-cli/2.1.258 (external, sdk-cli)");
+ 		const system = mockState.createParams?.system as Array<{ text: string; cache_control?: unknown }>;
+ 		expect(system[0].text).toMatch(
+-			/^x-anthropic-billing-header: cc_version=2\.1\.224\.[0-9a-f]{3}; cc_entrypoint=sdk-cli; cch=00000;$/,
++			/^x-anthropic-billing-header: cc_version=2\.1\.258\.[0-9a-f]{3}; cc_entrypoint=sdk-cli; cch=00000;$/,
+ 		);
+ 		expect(system[0].cache_control).toBeUndefined();
+ 		expect(system[1]).toEqual({
+diff --git a/packages/ai/test/anthropic-claude-code.test.ts b/packages/ai/test/anthropic-claude-code.test.ts
+index 04e37cc4..b7c32ce9 100644
+--- a/packages/ai/test/anthropic-claude-code.test.ts
++++ b/packages/ai/test/anthropic-claude-code.test.ts
+@@ -18,9 +18,9 @@ describe("Claude Code Anthropic request compatibility", () => {
+ 	});
+ 
+ 	it("reproduces the recovered cc_version prompt fingerprint", async () => {
+-		expect(await claudeCodeVersionFingerprint(promptMessages("Reply with exactly: PROBE_OK"))).toBe("f97");
++		expect(await claudeCodeVersionFingerprint(promptMessages("Reply with exactly: PROBE_OK"))).toBe("01c");
+ 		expect(await buildClaudeCodeBillingHeader(promptMessages("Reply with exactly: PROBE_OK"))).toBe(
+-			"x-anthropic-billing-header: cc_version=2.1.224.f97; cc_entrypoint=sdk-cli; cch=00000;",
++			"x-anthropic-billing-header: cc_version=2.1.258.01c; cc_entrypoint=sdk-cli; cch=00000;",
+ 		);
+ 	});
+ 
+-- 
+2.39.5 (Apple Git-154)
+

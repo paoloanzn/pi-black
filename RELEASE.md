@@ -2,6 +2,8 @@
 
 Use your Claude Max (or Pro) subscription with Pi.
 
+This release updates the Claude Code protocol to 2.1.258 in both the Pi package and standalone binaries, addressing `claude_code_version_too_old` errors. The standalone build remains based on Pi 0.84.1; the package supports Pi 0.84.1 or newer.
+
 This unofficial release is installable as a Pi package from its Git tag. It also applies the repository's retained patch series to the immutable Pi commit recorded in `config/pi.env` and builds Pi's six supported standalone targets.
 
 Install the package with:
