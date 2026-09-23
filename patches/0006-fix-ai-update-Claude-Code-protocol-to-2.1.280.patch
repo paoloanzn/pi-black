@@ -1,0 +1,357 @@
+From 751abfe40949c48a012f65dc98b30d96f46b8049 Mon Sep 17 00:00:00 2001
+From: Pi OAuth Compatibility Maintainers <noreply@example.invalid>
+Date: Wed, 23 Sep 2026 20:09:25 +0300
+Subject: [PATCH] fix(ai): update Claude Code protocol to 2.1.280
+
+Anthropic now rejects Opus 5.5 requests that advertise Claude Code
+2.1.258 with claude_code_version_too_old. Advertise 2.1.280, which
+keeps the same billing salt and request shape.
+
+The 2.1.280 cch billing checksum moved out of the JavaScript bundle:
+the billing header is built with a literal cch=00000 placeholder and
+the real value is injected by native runtime code, so the previous
+seeded XXH64 body patch no longer reproduces it. Live verification
+against api.anthropic.com (2026-09-23) shows the API accepts the
+well-formed zero value, so the billing header now emits cch=00000
+directly and the serialized request body is forwarded unchanged.
+---
+ packages/ai/src/api/anthropic-claude-code.ts  | 175 ++++--------------
+ packages/ai/test/anthropic-auth-token.test.ts |   4 +-
+ .../ai/test/anthropic-claude-code.test.ts     |  67 +++----
+ 3 files changed, 65 insertions(+), 181 deletions(-)
+
+diff --git a/packages/ai/src/api/anthropic-claude-code.ts b/packages/ai/src/api/anthropic-claude-code.ts
+index 8401361b..2f25044c 100644
+--- a/packages/ai/src/api/anthropic-claude-code.ts
++++ b/packages/ai/src/api/anthropic-claude-code.ts
+@@ -1,91 +1,14 @@
+ import type { FetchFunction, Message } from "../types.ts";
+ 
+-export const CLAUDE_CODE_VERSION = "2.1.258";
++export const CLAUDE_CODE_VERSION = "2.1.280";
+ export const CLAUDE_CODE_ENTRYPOINT = "sdk-cli";
+ 
+-const CCH_PLACEHOLDER = "cch=00000";
+-const CCH_SEED = 0x4d659218e32a3268n;
+-const MASK_64 = 0xffffffffffffffffn;
+-const PRIME64_1 = 0x9e3779b185ebca87n;
+-const PRIME64_2 = 0xc2b2ae3d27d4eb4fn;
+-const PRIME64_3 = 0x165667b19e3779f9n;
+-const PRIME64_4 = 0x85ebca77c2b2ae63n;
+-const PRIME64_5 = 0x27d4eb2f165667c5n;
+-
+-function rotateLeft(value: bigint, bits: bigint): bigint {
+-	const normalized = value & MASK_64;
+-	return ((normalized << bits) | (normalized >> (64n - bits))) & MASK_64;
+-}
+-
+-function readUint32LE(bytes: Uint8Array, offset: number): bigint {
+-	return BigInt(
+-		(bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0,
+-	);
+-}
+-
+-function readUint64LE(bytes: Uint8Array, offset: number): bigint {
+-	return readUint32LE(bytes, offset) | (readUint32LE(bytes, offset + 4) << 32n);
+-}
+-
+-function round(accumulator: bigint, input: bigint): bigint {
+-	const mixed = (accumulator + input * PRIME64_2) & MASK_64;
+-	return (rotateLeft(mixed, 31n) * PRIME64_1) & MASK_64;
+-}
+-
+-function mergeRound(accumulator: bigint, value: bigint): bigint {
+-	return ((accumulator ^ round(0n, value)) * PRIME64_1 + PRIME64_4) & MASK_64;
+-}
+-
+-/** Portable XXH64 used by Claude Code's native request serializer. */
+-export function xxHash64(bytes: Uint8Array, seed = 0n): bigint {
+-	let offset = 0;
+-	let hash: bigint;
+-
+-	if (bytes.length >= 32) {
+-		let v1 = (seed + PRIME64_1 + PRIME64_2) & MASK_64;
+-		let v2 = (seed + PRIME64_2) & MASK_64;
+-		let v3 = seed & MASK_64;
+-		let v4 = (seed - PRIME64_1) & MASK_64;
+-		while (offset <= bytes.length - 32) {
+-			v1 = round(v1, readUint64LE(bytes, offset));
+-			v2 = round(v2, readUint64LE(bytes, offset + 8));
+-			v3 = round(v3, readUint64LE(bytes, offset + 16));
+-			v4 = round(v4, readUint64LE(bytes, offset + 24));
+-			offset += 32;
+-		}
+-		hash = (rotateLeft(v1, 1n) + rotateLeft(v2, 7n) + rotateLeft(v3, 12n) + rotateLeft(v4, 18n)) & MASK_64;
+-		hash = mergeRound(hash, v1);
+-		hash = mergeRound(hash, v2);
+-		hash = mergeRound(hash, v3);
+-		hash = mergeRound(hash, v4);
+-	} else {
+-		hash = (seed + PRIME64_5) & MASK_64;
+-	}
+-
+-	hash = (hash + BigInt(bytes.length)) & MASK_64;
+-	while (offset <= bytes.length - 8) {
+-		const lane = round(0n, readUint64LE(bytes, offset));
+-		hash = (rotateLeft(hash ^ lane, 27n) * PRIME64_1 + PRIME64_4) & MASK_64;
+-		offset += 8;
+-	}
+-	if (offset <= bytes.length - 4) {
+-		hash ^= readUint32LE(bytes, offset) * PRIME64_1;
+-		hash = (rotateLeft(hash, 23n) * PRIME64_2 + PRIME64_3) & MASK_64;
+-		offset += 4;
+-	}
+-	while (offset < bytes.length) {
+-		hash ^= BigInt(bytes[offset]) * PRIME64_5;
+-		hash = (rotateLeft(hash, 11n) * PRIME64_1) & MASK_64;
+-		offset++;
+-	}
+-
+-	hash ^= hash >> 33n;
+-	hash = (hash * PRIME64_2) & MASK_64;
+-	hash ^= hash >> 29n;
+-	hash = (hash * PRIME64_3) & MASK_64;
+-	hash ^= hash >> 32n;
+-	return hash & MASK_64;
+-}
++// Claude Code 2.1.280 computes the real cch checksum in native code outside its
++// JavaScript bundle, so it cannot be reproduced here. The Anthropic API accepts
++// the well-formed zero value (verified against api.anthropic.com on 2026-09-23:
++// cch=00000 with cc_version=2.1.280 returns 200), so the billing header emits it
++// directly and the serialized request body is forwarded unchanged.
++const CCH_VALUE = "00000";
+ 
+ function firstUserPrompt(messages: Message[]): string {
+ 	for (const message of messages) {
+@@ -100,78 +23,52 @@ function firstUserPrompt(messages: Message[]): string {
+ }
+ 
+ function bytesToHex(bytes: Uint8Array): string {
+-	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
++	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
++		"",
++	);
+ }
+ 
+-export async function claudeCodeVersionFingerprint(messages: Message[]): Promise<string> {
++export async function claudeCodeVersionFingerprint(
++	messages: Message[],
++): Promise<string> {
+ 	const prompt = firstUserPrompt(messages);
+ 	const selected = [4, 7, 20].map((index) => prompt[index] || "0").join("");
+-	const input = new TextEncoder().encode(`59cf53e54c78${selected}${CLAUDE_CODE_VERSION}`);
++	const input = new TextEncoder().encode(
++		`59cf53e54c78${selected}${CLAUDE_CODE_VERSION}`,
++	);
+ 	const digest = await crypto.subtle.digest("SHA-256", input);
+ 	return bytesToHex(new Uint8Array(digest)).slice(0, 3);
+ }
+ 
+-export async function buildClaudeCodeBillingHeader(messages: Message[]): Promise<string> {
++export async function buildClaudeCodeBillingHeader(
++	messages: Message[],
++): Promise<string> {
+ 	const fingerprint = await claudeCodeVersionFingerprint(messages);
+-	return `x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.${fingerprint}; cc_entrypoint=${CLAUDE_CODE_ENTRYPOINT}; ${CCH_PLACEHOLDER};`;
+-}
+-
+-export function patchClaudeCodeCch(serializedBody: string): string {
+-	let body: Record<string, unknown>;
+-	try {
+-		const parsed = JSON.parse(serializedBody);
+-		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("not an object");
+-		body = parsed as Record<string, unknown>;
+-	} catch {
+-		throw new Error("Claude Code OAuth request body is not a JSON object");
+-	}
+-	const system = body.system;
+-	if (!Array.isArray(system) || typeof system[0] !== "object" || system[0] === null || Array.isArray(system[0])) {
+-		throw new Error("Claude Code OAuth request is missing the billing system block");
+-	}
+-	const billingBlock = system[0] as Record<string, unknown>;
+-	if (typeof billingBlock.text !== "string" || !billingBlock.text.startsWith("x-anthropic-billing-header: ")) {
+-		throw new Error("Claude Code OAuth request has an invalid billing system block");
+-	}
+-	if (!billingBlock.text.includes(CCH_PLACEHOLDER)) {
+-		if (/; cch=[0-9a-f]{5};$/u.test(billingBlock.text)) return serializedBody;
+-		throw new Error("Claude Code OAuth request has an invalid cch billing value");
+-	}
+-	if (typeof body.model !== "string" || !("max_tokens" in body)) {
+-		throw new Error("Claude Code OAuth request is missing model or max_tokens");
+-	}
+-
+-	const normalized = structuredClone(body);
+-	normalized.model = "";
+-	delete normalized.max_tokens;
+-	const hash = xxHash64(new TextEncoder().encode(JSON.stringify(normalized)), CCH_SEED);
+-	const cch = (hash & 0xfffffn).toString(16).padStart(5, "0");
+-	billingBlock.text = billingBlock.text.replace(CCH_PLACEHOLDER, `cch=${cch}`);
+-	return JSON.stringify(body);
++	return `x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.${fingerprint}; cc_entrypoint=${CLAUDE_CODE_ENTRYPOINT}; cch=${CCH_VALUE};`;
+ }
+ 
+-function requestHeaders(input: Parameters<FetchFunction>[0], init?: RequestInit): Headers {
+-	const headers = new Headers(input instanceof Request ? input.headers : undefined);
++function requestHeaders(
++	input: Parameters<FetchFunction>[0],
++	init?: RequestInit,
++): Headers {
++	const headers = new Headers(
++		input instanceof Request ? input.headers : undefined,
++	);
+ 	if (init?.headers) {
+-		for (const [name, value] of new Headers(init.headers)) headers.set(name, value);
++		for (const [name, value] of new Headers(init.headers))
++			headers.set(name, value);
+ 	}
+ 	return headers;
+ }
+ 
+-/** Patch the SDK's final compact JSON and add identifiers generated per HTTP request. */
+-export function createClaudeCodeFetch(fetchImplementation: FetchFunction): FetchFunction {
++/** Add identifiers generated per HTTP request and forward the body unchanged. */
++export function createClaudeCodeFetch(
++	fetchImplementation: FetchFunction,
++): FetchFunction {
+ 	return async (input, init) => {
+ 		const headers = requestHeaders(input, init);
+-		if (!headers.has("x-client-request-id")) headers.set("x-client-request-id", crypto.randomUUID());
+-
+-		if (typeof init?.body === "string") {
+-			return fetchImplementation(input, { ...init, headers, body: patchClaudeCodeCch(init.body) });
+-		}
+-		if (input instanceof Request) {
+-			const body = await input.clone().text();
+-			const request = new Request(input, { headers, body: patchClaudeCodeCch(body) });
+-			return fetchImplementation(request);
+-		}
+-		throw new Error("Claude Code OAuth request body is not available for cch patching");
++		if (!headers.has("x-client-request-id"))
++			headers.set("x-client-request-id", crypto.randomUUID());
++		return fetchImplementation(input, { ...init, headers });
+ 	};
+ }
+diff --git a/packages/ai/test/anthropic-auth-token.test.ts b/packages/ai/test/anthropic-auth-token.test.ts
+index 29e8f9f8..53b87646 100644
+--- a/packages/ai/test/anthropic-auth-token.test.ts
++++ b/packages/ai/test/anthropic-auth-token.test.ts
+@@ -166,10 +166,10 @@ describe("Anthropic auth token env", () => {
+ 		expect(mockState.constructorOpts?.authToken).toBe("sk-ant-oat-test");
+ 		const headers = mockState.constructorOpts?.defaultHeaders as Record<string, string>;
+ 		expect(headers["anthropic-beta"]).toContain("oauth-2025-04-20");
+-		expect(headers["user-agent"]).toBe("claude-cli/2.1.258 (external, sdk-cli)");
++		expect(headers["user-agent"]).toBe("claude-cli/2.1.280 (external, sdk-cli)");
+ 		const system = mockState.createParams?.system as Array<{ text: string; cache_control?: unknown }>;
+ 		expect(system[0].text).toMatch(
+-			/^x-anthropic-billing-header: cc_version=2\.1\.258\.[0-9a-f]{3}; cc_entrypoint=sdk-cli; cch=00000;$/,
++			/^x-anthropic-billing-header: cc_version=2\.1\.280\.[0-9a-f]{3}; cc_entrypoint=sdk-cli; cch=00000;$/,
+ 		);
+ 		expect(system[0].cache_control).toBeUndefined();
+ 		expect(system[1]).toEqual({
+diff --git a/packages/ai/test/anthropic-claude-code.test.ts b/packages/ai/test/anthropic-claude-code.test.ts
+index b7c32ce9..79f2cd70 100644
+--- a/packages/ai/test/anthropic-claude-code.test.ts
++++ b/packages/ai/test/anthropic-claude-code.test.ts
+@@ -1,61 +1,48 @@
+ import { describe, expect, it, vi } from "vitest";
+ import {
+ 	buildClaudeCodeBillingHeader,
++	CLAUDE_CODE_VERSION,
+ 	claudeCodeVersionFingerprint,
+ 	createClaudeCodeFetch,
+-	patchClaudeCodeCch,
+-	xxHash64,
+ } from "../src/api/anthropic-claude-code.ts";
+ import type { Message } from "../src/types.ts";
+ 
+-const encoder = new TextEncoder();
+-const promptMessages = (prompt: string): Message[] => [{ role: "user", content: prompt, timestamp: 1 }];
++const promptMessages = (prompt: string): Message[] => [
++	{ role: "user", content: prompt, timestamp: 1 },
++];
+ 
+ describe("Claude Code Anthropic request compatibility", () => {
+-	it("implements standard XXH64 vectors", () => {
+-		expect(xxHash64(encoder.encode("")).toString(16)).toBe("ef46db3751d8e999");
+-		expect(xxHash64(encoder.encode("hello")).toString(16)).toBe("26c7827d889f6da3");
+-	});
+-
+ 	it("reproduces the recovered cc_version prompt fingerprint", async () => {
+-		expect(await claudeCodeVersionFingerprint(promptMessages("Reply with exactly: PROBE_OK"))).toBe("01c");
+-		expect(await buildClaudeCodeBillingHeader(promptMessages("Reply with exactly: PROBE_OK"))).toBe(
+-			"x-anthropic-billing-header: cc_version=2.1.258.01c; cc_entrypoint=sdk-cli; cch=00000;",
++		expect(
++			await claudeCodeVersionFingerprint(
++				promptMessages("Reply with exactly: PROBE_OK"),
++			),
++		).toBe("022");
++		expect(
++			await buildClaudeCodeBillingHeader(
++				promptMessages("Reply with exactly: PROBE_OK"),
++			),
++		).toBe(
++			`x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.022; cc_entrypoint=sdk-cli; cch=00000;`,
+ 		);
+ 	});
+ 
+-	it("omits the model value and complete max_tokens member before seeded XXH64", () => {
+-		const body =
+-			'{"model":"claude-opus-5","messages":[{"role":"user","content":"A"}],"max_tokens":64000,"stream":true,"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.224.000; cc_entrypoint=sdk-cli; cch=00000;"}]}';
+-		expect(patchClaudeCodeCch(body)).toContain("cch=7ba34");
+-	});
+-
+-	it("patches only the billing block when user and nested fields collide", () => {
+-		const body = {
++	it("forwards the final SDK body unchanged and generates a request UUID", async () => {
++		const body = JSON.stringify({
+ 			model: "claude-opus-5",
+-			messages: [{ role: "user", content: "cch=00000", model: "nested", max_tokens: 7 }],
+-			max_tokens: 64000,
++			messages: [],
++			max_tokens: 1,
+ 			stream: true,
+ 			system: [
+ 				{
+ 					type: "text",
+-					text: "x-anthropic-billing-header: cc_version=2.1.224.000; cc_entrypoint=sdk-cli; cch=00000;",
++					text: `x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.022; cc_entrypoint=sdk-cli; cch=00000;`,
+ 				},
+-				{ type: "text", text: "fake cch=00000" },
+ 			],
+-			tools: [{ name: "probe", description: "model max_tokens cch=00000" }],
+-		};
+-		const patched = JSON.parse(patchClaudeCodeCch(JSON.stringify(body))) as typeof body;
+-		expect(patched.system[0].text).toMatch(/cch=[0-9a-f]{5};$/);
+-		expect(patched.messages).toEqual(body.messages);
+-		expect(patched.system[1]).toEqual(body.system[1]);
+-		expect(patched.tools).toEqual(body.tools);
+-	});
+-
+-	it("patches the final SDK body and generates a request UUID", async () => {
+-		const body =
+-			'{"model":"claude-opus-5","messages":[],"max_tokens":1,"stream":true,"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.224.000; cc_entrypoint=sdk-cli; cch=00000;"}]}';
+-		const transport = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }));
++		});
++		const transport = vi.fn<typeof fetch>(
++			async () => new Response(null, { status: 200 }),
++		);
+ 		const wrapped = createClaudeCodeFetch(transport);
+ 
+ 		await wrapped("https://api.anthropic.com/v1/messages", {
+@@ -66,10 +53,10 @@ describe("Claude Code Anthropic request compatibility", () => {
+ 
+ 		expect(transport).toHaveBeenCalledOnce();
+ 		const [, init] = transport.mock.calls[0];
+-		expect(String(init?.body)).toMatch(/cch=[0-9a-f]{5}/);
+-		expect(String(init?.body)).not.toContain("cch=00000");
++		expect(init?.body).toBe(body);
++		expect(String(init?.body)).toContain("cch=00000");
+ 		const headers = new Headers(init?.headers);
+-		expect(headers.get("x-client-request-id")).toMatch(/^[0-9a-f-]{36}$/);
++		expect(headers.get("x-client-request-id")).toMatch(/^[0-9a-f-]{36}$/u);
+ 		expect(headers.get("authorization")).toBe("Bearer secret");
+ 	});
+ });
+-- 
+2.50.1 (Apple Git-155)
+

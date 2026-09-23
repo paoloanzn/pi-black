@@ -2,7 +2,7 @@
 
 Use your Claude Max (or Pro) subscription with Pi.
 
-Pi Black is an unofficial Pi package that routes Anthropic OAuth requests through your existing Claude subscription usage by applying Claude Code 2.1.258 request conventions. The existing source patch and standalone-binary build system remain available as a fallback.
+Pi Black is an unofficial Pi package that routes Anthropic OAuth requests through your existing Claude subscription usage by applying Claude Code 2.1.280 request conventions. The existing source patch and standalone-binary build system remain available as a fallback.
 
 ## Install
 
@@ -12,7 +12,7 @@ Pi Black has three independently versioned compatibility surfaces:
 | --- | --- |
 | Pi package | Pi 0.84.1 or newer |
 | Standalone `pi-black` binary | Based on Pi 0.84.1 |
-| Claude Code protocol | 2.1.258 |
+| Claude Code protocol | 2.1.280 |
 
 The Pi package requires Pi 0.84.1 or newer, with no upper version limit. Future Pi releases are trusted until an incompatibility is identified; the package peer dependencies are `"*"` because Pi supplies its core packages at runtime.
 
@@ -29,7 +29,7 @@ pi update --extensions
 For a reproducible install, pin a release tag:
 
 ```sh
-pi install git:github.com/paoloanzn/pi-black@v0.84.1-cc2.1.258.1
+pi install git:github.com/paoloanzn/pi-black@v0.84.1-cc2.1.280.1
 ```
 
 Pinned packages do not move automatically. Install a newer tagged ref explicitly when you are ready to upgrade.
@@ -54,12 +54,12 @@ For Anthropic OAuth requests, Pi Black reproduces the version-specific SDK-CLI r
 
 - exact billing and Agent SDK system-block ordering;
 - the prompt-dependent `cc_version` suffix;
-- structure-aware `cch` calculation using seeded XXH64;
+- the `cch` billing checksum emitted as the fixed zero value: Claude Code 2.1.280 moved the real checksum into native code outside its JavaScript bundle, and the Anthropic API accepts `cch=00000` (verified 2026-09-23);
 - per-request `x-client-request-id` values;
 - Claude Code session headers;
 - automatically discovered identity metadata when available.
 
-The checksum implementation validates and updates only the first billing system block. User content, tool results, descriptions, and nested `model` or `max_tokens` fields cannot redirect the placeholder patch.
+The billing block is built once per request and the serialized request body is forwarded unchanged; Pi Black no longer patches it after serialization.
 
 ## Verify the package
 
@@ -83,7 +83,7 @@ The installed launcher checks the latest release checksum at interactive startup
 Install a specific standalone release with `PI_BLACK_RELEASE`:
 
 ```sh
-curl -fsSL https://github.com/paoloanzn/pi-black/releases/latest/download/install.sh | PI_BLACK_RELEASE=v0.84.1-cc2.1.258.1 sh
+curl -fsSL https://github.com/paoloanzn/pi-black/releases/latest/download/install.sh | PI_BLACK_RELEASE=v0.84.1-cc2.1.280.1 sh
 ```
 
 The repository pins an immutable commit from [`paoloanzn/pi`](https://github.com/paoloanzn/pi), applies the patch under `patches/`, and delegates standalone compilation to Pi's release builder.

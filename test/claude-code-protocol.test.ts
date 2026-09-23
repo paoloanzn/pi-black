@@ -10,12 +10,9 @@ import {
 	createClaudeCodeFetch,
 	discoverClaudeCodeIdentity,
 	parseClaudeCodeIdentity,
-	patchClaudeCodeCch,
 	transformClaudeCodePayload,
-	xxHash64,
 } from "../src/claude-code-protocol.ts";
 
-const encoder = new TextEncoder();
 const temporaryDirectories: string[] = [];
 const promptMessages = (prompt: string): Message[] => [
 	{ role: "user", content: prompt, timestamp: 1 },
@@ -35,25 +32,18 @@ afterEach(async () => {
 });
 
 describe("Claude Code protocol", () => {
-	it("implements standard XXH64 vectors", () => {
-		expect(xxHash64(encoder.encode("")).toString(16)).toBe("ef46db3751d8e999");
-		expect(xxHash64(encoder.encode("hello")).toString(16)).toBe(
-			"26c7827d889f6da3",
-		);
-	});
-
 	it("reproduces the recovered cc_version prompt fingerprint", async () => {
 		expect(
 			await claudeCodeVersionFingerprint(
 				promptMessages("Reply with exactly: PROBE_OK"),
 			),
-		).toBe("01c");
+		).toBe("022");
 		expect(
 			await buildClaudeCodeBillingHeader(
 				promptMessages("Reply with exactly: PROBE_OK"),
 			),
 		).toBe(
-			`x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.01c; cc_entrypoint=sdk-cli; cch=00000;`,
+			`x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.022; cc_entrypoint=sdk-cli; cch=00000;`,
 		);
 	});
 
@@ -101,7 +91,7 @@ describe("Claude Code protocol", () => {
 		const system = payload.system as Array<Record<string, unknown>>;
 		expect(system[0]).toEqual({
 			type: "text",
-			text: `x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.01c; cc_entrypoint=sdk-cli; cch=00000;`,
+			text: `x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.022; cc_entrypoint=sdk-cli; cch=00000;`,
 		});
 		expect(system[1]).toEqual({
 			type: "text",
@@ -153,51 +143,7 @@ describe("Claude Code protocol", () => {
 		expect(payload).not.toHaveProperty("metadata");
 	});
 
-	it("reproduces the recovered normalized-body checksum", () => {
-		const body =
-			'{"model":"claude-opus-5","messages":[{"role":"user","content":"A"}],"max_tokens":64000,"stream":true,"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.224.000; cc_entrypoint=sdk-cli; cch=00000;"}]}';
-		expect(patchClaudeCodeCch(body)).toContain("cch=7ba34");
-	});
-
-	it("patches only the first billing block despite placeholder and nested-field collisions", () => {
-		const body = {
-			model: "claude-opus-5",
-			messages: [
-				{
-					role: "user",
-					content: "cch=00000",
-					model: "nested-model",
-					max_tokens: 7,
-				},
-			],
-			max_tokens: 64000,
-			stream: true,
-			system: [
-				{
-					type: "text",
-					text: "x-anthropic-billing-header: cc_version=2.1.224.000; cc_entrypoint=sdk-cli; cch=00000;",
-				},
-				{ type: "text", text: "fake cch=00000" },
-			],
-			tools: [
-				{
-					name: "probe",
-					description: "model max_tokens cch=00000",
-					input_schema: { type: "object" },
-				},
-			],
-		};
-		const patched = JSON.parse(
-			patchClaudeCodeCch(JSON.stringify(body)),
-		) as typeof body;
-		expect(patched.system[0].text).toMatch(/cch=[0-9a-f]{5};$/u);
-		expect(patched.system[0].text).not.toContain("cch=00000");
-		expect(patched.messages[0]).toEqual(body.messages[0]);
-		expect(patched.system[1]).toEqual(body.system[1]);
-		expect(patched.tools).toEqual(body.tools);
-	});
-
-	it("leaves an already patched billing value unchanged", () => {
+	it("forwards the final SDK body unchanged and generates a request UUID", async () => {
 		const body = JSON.stringify({
 			model: "claude-opus-5",
 			messages: [],
@@ -206,23 +152,7 @@ describe("Claude Code protocol", () => {
 			system: [
 				{
 					type: "text",
-					text: "x-anthropic-billing-header: cc_version=2.1.224.000; cc_entrypoint=sdk-cli; cch=abc12;",
-				},
-			],
-		});
-		expect(patchClaudeCodeCch(body)).toBe(body);
-	});
-
-	it("patches the final SDK body and generates a request UUID", async () => {
-		const body = JSON.stringify({
-			model: "claude-opus-5",
-			messages: [],
-			max_tokens: 1,
-			stream: true,
-			system: [
-				{
-					type: "text",
-					text: "x-anthropic-billing-header: cc_version=2.1.224.000; cc_entrypoint=sdk-cli; cch=00000;",
+					text: `x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.022; cc_entrypoint=sdk-cli; cch=00000;`,
 				},
 			],
 		});
@@ -239,7 +169,8 @@ describe("Claude Code protocol", () => {
 		);
 
 		const [, init] = transport.mock.calls[0];
-		expect(String(init?.body)).toMatch(/cch=[0-9a-f]{5}/u);
+		expect(init?.body).toBe(body);
+		expect(String(init?.body)).toContain("cch=00000");
 		const headers = new Headers(init?.headers);
 		expect(headers.get("x-client-request-id")).toMatch(/^[0-9a-f-]{36}$/u);
 		expect(headers.get("authorization")).toBe("Bearer secret");

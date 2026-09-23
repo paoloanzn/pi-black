@@ -19,6 +19,7 @@ expected=(
     0003-feat-coding-agent-customize-Pi-Black-startup.patch
     0004-fix-ai-stabilize-Cloudflare-API-inference.patch
     0005-fix-ai-update-Claude-Code-protocol-to-2.1.258.patch
+    0006-fix-ai-update-Claude-Code-protocol-to-2.1.280.patch
     PI_BUILD_INPUTS.env
     BUILD.md
     PROVENANCE.txt
