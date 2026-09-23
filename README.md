@@ -2,7 +2,7 @@
 
 Use your Claude Max (or Pro) subscription with Pi.
 
-Pi Black is an unofficial Pi package that routes Anthropic OAuth requests through your existing Claude subscription usage by applying Claude Code 2.1.258 request conventions. The existing source patch and standalone-binary build system remain available as a fallback.
+Pi Black is an unofficial Pi package that routes Anthropic OAuth requests through your existing Claude subscription usage by applying Claude Code 2.1.280 request conventions. The existing source patch and standalone-binary build system remain available as a fallback.
 
 ## Install
 
@@ -12,7 +12,7 @@ Pi Black has three independently versioned compatibility surfaces:
 | --- | --- |
 | Pi package | Pi 0.84.1 or newer |
 | Standalone `pi-black` binary | Based on Pi 0.84.1 |
-| Claude Code protocol | 2.1.258 |
+| Claude Code protocol | 2.1.280 |
 
 The Pi package requires Pi 0.84.1 or newer, with no upper version limit. Future Pi releases are trusted until an incompatibility is identified; the package peer dependencies are `"*"` because Pi supplies its core packages at runtime.
 
@@ -26,7 +26,7 @@ Pi checks unpinned Git packages for updates in the background. When a newer Pi B
 pi update --extensions
 ```
 
-For a reproducible install, pin a release tag:
+For a reproducible install, pin a published release tag. The example below uses protocol 2.1.258 and does not support models that require 2.1.280. Use the unpinned Git install above for the updated protocol until a corresponding release is published.
 
 ```sh
 pi install git:github.com/paoloanzn/pi-black@v0.84.1-cc2.1.258.1
@@ -72,7 +72,9 @@ Public CI uses fake transports only. It never makes provider requests and requir
 
 ## Standalone installer and binaries
 
-The Pi package is the recommended installation. macOS and Linux users who prefer the standalone patched build can install the latest native release as `pi-black`:
+The Pi package is the recommended installation. macOS and Linux users who prefer the standalone patched build can install the latest native release as `pi-black`.
+
+The currently published standalone release uses protocol 2.1.258. Both installation commands below require a new release to support models that require 2.1.280.
 
 ```sh
 curl -fsSL https://github.com/paoloanzn/pi-black/releases/latest/download/install.sh | sh
