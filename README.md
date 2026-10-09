@@ -54,7 +54,9 @@ For Anthropic OAuth requests, Pi Black reproduces the version-specific SDK-CLI r
 
 - exact billing and Agent SDK system-block ordering;
 - the prompt-dependent `cc_version` suffix;
-- structure-aware `cch` calculation using seeded XXH64;
+- structure-aware `cch` calculation using seeded XXH64, bit-for-bit identical to the
+  claude-code native engine (body `model` and every `tools[].model` normalized to `""`,
+  `max_tokens` removed; verified against live native-engine oracle values);
 - per-request `x-client-request-id` values;
 - Claude Code session headers;
 - automatically discovered identity metadata when available.
@@ -109,3 +111,22 @@ Build requirements and repeatability limits are in [`BUILD.md`](BUILD.md).
 This project is unofficial and is not affiliated with or endorsed by Anthropic or the upstream Pi project. Users must provide their own valid account credentials and determine whether use complies with applicable service terms. The compatibility mechanism is version-specific and must be revalidated when Claude Code or Pi changes.
 
 No OAuth tokens, identifiers, captures, or private Claude state are included in the package or release artifacts. Pi and the derived patch are distributed under the MIT license; see [`LICENSE`](LICENSE).
+
+## Routing through the claude-harness native proxy (optional)
+
+Set `PI_BLACK_HARNESS_URL` to route OAuth Anthropic traffic through the claude-harness
+proxy (a stripped claude-code binary that re-issues requests with its native engine —
+native TLS/HTTP fingerprint and native `cch` handling):
+
+```sh
+# terminal 1: harness (see /Volumes/Projects/claude-white/harness_entry.js)
+./claude-harness            # listens on 127.0.0.1:8321
+
+# terminal 2: pi with the harness route enabled
+PI_BLACK_HARNESS_URL=http://127.0.0.1:8321 pi
+```
+
+Requests are transparently rewritten to `http://127.0.0.1:8321/forward/<original-url>`;
+responses (including SSE) stream back raw. When the variable is unset, behavior is
+unchanged (direct transport). Integration test: `npx vitest --run test/harness-forward.test.ts`
+(skips automatically when the harness is not running).
