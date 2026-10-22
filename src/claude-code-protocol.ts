@@ -22,8 +22,9 @@ const PRIME64_4 = 0x85ebca77c2b2ae63n;
 const PRIME64_5 = 0x27d4eb2f165667c5n;
 const AGENT_SDK_SYSTEM_PROMPT =
 	"You are a Claude agent, built on Anthropic's Claude Agent SDK.";
-const LEGACY_PI_OAUTH_SYSTEM_PROMPT =
-	"You are Claude Code, Anthropic's official CLI for Claude.";
+const BILLING_HEADER_PREFIX = "x-anthropic-billing-header: ";
+// Any Claude Code identity wording Pi may ship, so a rename cannot duplicate it.
+const CLAUDE_CODE_IDENTITY = /^You are (?:Claude Code|a Claude agent)\b/u;
 
 export interface ClaudeCodeIdentity {
 	deviceId: string;
@@ -36,6 +37,14 @@ interface JsonObject {
 
 function isObject(value: unknown): value is JsonObject {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isClaudeCodeBlock(block: unknown): boolean {
+	if (!isObject(block) || typeof block.text !== "string") return false;
+	return (
+		block.text.startsWith(BILLING_HEADER_PREFIX) ||
+		CLAUDE_CODE_IDENTITY.test(block.text)
+	);
 }
 
 function rotateLeft(value: bigint, bits: bigint): bigint {
@@ -212,26 +221,28 @@ export async function transformClaudeCodePayload(
 	if (!isObject(payload))
 		throw new Error("Pi Black expected an Anthropic JSON request object");
 	const existingSystem = Array.isArray(payload.system) ? payload.system : [];
-	const firstSystemText = isObject(existingSystem[0])
-		? existingSystem[0].text
-		: undefined;
-	const secondSystemText = isObject(existingSystem[1])
-		? existingSystem[1].text
-		: undefined;
-	const remainingSystem =
-		typeof firstSystemText === "string" &&
-		firstSystemText.startsWith("x-anthropic-billing-header: ") &&
-		secondSystemText === AGENT_SDK_SYSTEM_PROMPT
-			? existingSystem.slice(2)
-			: firstSystemText === LEGACY_PI_OAUTH_SYSTEM_PROMPT
-				? existingSystem.slice(1)
-				: existingSystem;
+	// Pi, or a build retaining the source patch, may already put these blocks first.
+	let leading = 0;
+	let identityCacheControl: unknown;
+	while (leading < 2 && isClaudeCodeBlock(existingSystem[leading])) {
+		const block = existingSystem[leading];
+		const cacheControl = isObject(block) ? block.cache_control : undefined;
+		if (!identityCacheControl && cacheControl) identityCacheControl = cacheControl;
+		leading++;
+	}
+	const remainingSystem = existingSystem.slice(leading);
+	// The billing block varies per request, so the breakpoint Pi put on the identity
+	// block it replaces has to move to the SDK block or the session default is lost.
 	const billingHeader = await buildClaudeCodeBillingHeader(context.messages);
 	const transformed: JsonObject = {
 		...payload,
 		system: [
 			{ type: "text", text: billingHeader },
-			{ type: "text", text: AGENT_SDK_SYSTEM_PROMPT },
+			{
+				type: "text",
+				text: AGENT_SDK_SYSTEM_PROMPT,
+				...(identityCacheControl ? { cache_control: identityCacheControl } : {}),
+			},
 			...remainingSystem,
 		],
 	};

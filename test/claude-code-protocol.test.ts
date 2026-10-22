@@ -143,6 +143,72 @@ describe("Claude Code protocol", () => {
 		expect(second.system).toEqual(first.system);
 	});
 
+	it("does not duplicate a renamed Claude Code identity block", async () => {
+		const payload = await transformClaudeCodePayload(
+			{
+				model: "claude-opus-5",
+				messages: [],
+				max_tokens: 1,
+				stream: true,
+				system: [
+					{
+						type: "text",
+						text: `x-anthropic-billing-header: cc_version=${CLAUDE_CODE_VERSION}.022; cc_entrypoint=sdk-cli; cch=abcde;`,
+					},
+					{
+						type: "text",
+						text: "You are Claude Code, Anthropic's official CLI for Claude",
+					},
+					{ type: "text", text: "Pi system" },
+				],
+			},
+			context("hello"),
+			undefined,
+			undefined,
+		);
+		const system = payload.system as Array<Record<string, unknown>>;
+		expect(system.map((block) => block.text)).toEqual([
+			expect.stringMatching(/^x-anthropic-billing-header: /),
+			"You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+			"Pi system",
+		]);
+	});
+
+	it("keeps the cache breakpoint Pi set on the identity block", async () => {
+		const payload = await transformClaudeCodePayload(
+			{
+				model: "claude-opus-5",
+				messages: [],
+				max_tokens: 1,
+				stream: true,
+				system: [
+					{
+						type: "text",
+						text: "You are Claude Code, Anthropic's official CLI for Claude.",
+						cache_control: { type: "ephemeral" },
+					},
+				],
+			},
+			context("hello"),
+			undefined,
+			undefined,
+		);
+		const system = payload.system as Array<Record<string, unknown>>;
+		expect(system[0]).not.toHaveProperty("cache_control");
+		expect(system[1]).toEqual({
+			type: "text",
+			text: "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+			cache_control: { type: "ephemeral" },
+		});
+		const twice = await transformClaudeCodePayload(
+			payload,
+			context("hello"),
+			undefined,
+			undefined,
+		);
+		expect(twice.system).toEqual(payload.system);
+	});
+
 	it("omits identity metadata when Claude Code state is unavailable", async () => {
 		const payload = await transformClaudeCodePayload(
 			{ model: "claude-opus-5", messages: [], max_tokens: 1, stream: true },
