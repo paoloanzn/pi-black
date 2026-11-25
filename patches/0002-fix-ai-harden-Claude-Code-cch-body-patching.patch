@@ -1,4 +1,4 @@
-From 4913dab57ef91e6d3975fede0b5850660bbf8c36 Mon Sep 17 00:00:00 2001
+From 8d80fcaf1ed03c3b1e9ccd104f3ca1c189fb257e Mon Sep 17 00:00:00 2001
 From: Paolo Anz <paoloanzn@users.noreply.github.com>
 Date: Fri, 7 Aug 2026 16:59:00 +0000
 Subject: [PATCH] fix(ai): harden Claude Code cch body patching
@@ -9,7 +9,7 @@ Subject: [PATCH] fix(ai): harden Claude Code cch body patching
  2 files changed, 49 insertions(+), 10 deletions(-)
 
 diff --git a/packages/ai/src/api/anthropic-claude-code.ts b/packages/ai/src/api/anthropic-claude-code.ts
-index 3b23b906..438312e0 100644
+index 3b23b9062..438312e02 100644
 --- a/packages/ai/src/api/anthropic-claude-code.ts
 +++ b/packages/ai/src/api/anthropic-claude-code.ts
 @@ -117,20 +117,37 @@ export async function buildClaudeCodeBillingHeader(messages: Message[]): Promise
@@ -61,7 +61,7 @@ index 3b23b906..438312e0 100644
  
  function requestHeaders(input: Parameters<FetchFunction>[0], init?: RequestInit): Headers {
 diff --git a/packages/ai/test/anthropic-claude-code.test.ts b/packages/ai/test/anthropic-claude-code.test.ts
-index fd1a282f..04e37cc4 100644
+index fd1a282fc..04e37cc4f 100644
 --- a/packages/ai/test/anthropic-claude-code.test.ts
 +++ b/packages/ai/test/anthropic-claude-code.test.ts
 @@ -30,6 +30,28 @@ describe("Claude Code Anthropic request compatibility", () => {
@@ -93,3 +93,6 @@ index fd1a282f..04e37cc4 100644
  	it("patches the final SDK body and generates a request UUID", async () => {
  		const body =
  			'{"model":"claude-opus-5","messages":[],"max_tokens":1,"stream":true,"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.224.000; cc_entrypoint=sdk-cli; cch=00000;"}]}';
+-- 
+2.43.0
+

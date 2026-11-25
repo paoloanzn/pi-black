@@ -1,22 +1,23 @@
-import type {
-	Api,
-	ApiStreamOptions,
-	AssistantMessageEventStream,
-	Context,
-	Model,
-	Provider,
-	SimpleStreamOptions,
+import {
+	type Api,
+	type ApiStreamOptions,
+	type AssistantMessageEventStream,
+	type Model,
+	normalizeContext,
+	type Provider,
+	type SimpleStreamOptions,
+	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import { wrapAnthropicProvider } from "../src/anthropic-provider.ts";
 import { CLAUDE_CODE_VERSION } from "../src/claude-code-protocol.ts";
 
-const context: Context = {
+const context = normalizeContext({
 	systemPrompt: "Pi system",
 	messages: [
 		{ role: "user", content: "Reply with exactly: PROBE_OK", timestamp: 1 },
 	],
-};
+});
 const model = {
 	id: "claude-test",
 	provider: "anthropic",
@@ -34,7 +35,7 @@ function fakeProvider() {
 		name: "Anthropic",
 		stream<T extends Api>(
 			model: Model<T>,
-			_context: Context,
+			_context: TranscriptContext,
 			options?: ApiStreamOptions<T>,
 		) {
 			streamModel = model as Model<Api>;
@@ -43,7 +44,7 @@ function fakeProvider() {
 		},
 		streamSimple(
 			model: Model<Api>,
-			_context: Context,
+			_context: TranscriptContext,
 			options?: SimpleStreamOptions,
 		) {
 			simpleModel = model;

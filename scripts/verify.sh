@@ -29,17 +29,19 @@ fi
 
 cd "$source_dir"
 npm ci --ignore-scripts
-npx tsx packages/ai/scripts/generate-models.ts --strict
+npm run hydrate:model-data
+npm --prefix packages/ai run check:model-data
+npm --prefix packages/telemetry run build
+npm --prefix packages/schema run build
 node "$source_dir/node_modules/vitest/dist/cli.js" --run \
     packages/ai/test/anthropic-claude-code.test.ts \
     packages/ai/test/anthropic-auth-token.test.ts
-npx tsx packages/ai/scripts/check-model-data.ts
-npm --prefix packages/telemetry run build
-npx tsgo -p packages/ai/tsconfig.build.json --noEmit
+npx tsc -p packages/ai/tsconfig.build.json --noEmit
 npx biome check \
     packages/ai/src/api/anthropic-claude-code.ts \
     packages/ai/src/api/anthropic-messages.ts \
     packages/ai/test/anthropic-claude-code.test.ts \
-    packages/ai/test/anthropic-auth-token.test.ts
+    packages/ai/test/anthropic-auth-token.test.ts \
+    packages/coding-agent/src/modes/interactive/interactive-mode.ts
 
 echo "Plugin and patch verification passed"

@@ -1,10 +1,10 @@
 import type {
 	Api,
 	ApiStreamOptions,
-	Context,
 	Model,
 	Provider,
 	SimpleStreamOptions,
+	TranscriptContext,
 } from "@earendil-works/pi-ai";
 import {
 	type ClaudeCodeIdentity,
@@ -17,7 +17,7 @@ import {
 // requests after `onPayload`, dropping the billing block, and add a `thread`
 // field and beta header that Claude Code never sends. OAuth requests always
 // go out as full, thread-less requests instead.
-// Older pi-ai versions neither type nor read the flag, hence the plain object.
+// The cast is needed because `compat` is typed per API and `T` stays generic.
 function withoutMessageThreads<T extends Api>(model: Model<T>): Model<T> {
 	const compat: object = { ...model.compat, supportsMessageThreads: false };
 	return { ...model, compat } as Model<T>;
@@ -37,7 +37,7 @@ export function wrapAnthropicProvider(
 		...provider,
 		stream<T extends Api>(
 			model: Model<T>,
-			context: Context,
+			context: TranscriptContext,
 			options?: ApiStreamOptions<T>,
 		) {
 			if (!options || !isAnthropicOAuthToken(options.apiKey))
@@ -47,7 +47,7 @@ export function wrapAnthropicProvider(
 		},
 		streamSimple(
 			model: Model<Api>,
-			context: Context,
+			context: TranscriptContext,
 			options?: SimpleStreamOptions,
 		) {
 			if (!options || !isAnthropicOAuthToken(options.apiKey))

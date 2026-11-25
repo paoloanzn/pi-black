@@ -1,4 +1,4 @@
-export const MINIMUM_SUPPORTED_PI_VERSION = "0.84.1";
+export const MINIMUM_SUPPORTED_PI_VERSION = "1.6.0";
 
 type StableVersion = readonly [number, number, number];
 

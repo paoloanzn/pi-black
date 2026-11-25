@@ -8,7 +8,7 @@ Pi's model catalog is hydrated from upstream model APIs during each build, match
 
 - Git
 - Node.js 22
-- Bun 1.3.11
+- Bun 1.4.4
 - npm
 - standard archive tools (`tar`, `gzip`, `zip`, `unzip`)
 
