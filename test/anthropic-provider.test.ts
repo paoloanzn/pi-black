@@ -1,22 +1,23 @@
-import type {
-	Api,
-	ApiStreamOptions,
-	AssistantMessageEventStream,
-	Context,
-	Model,
-	Provider,
-	SimpleStreamOptions,
+import {
+	type Api,
+	type ApiStreamOptions,
+	type AssistantMessageEventStream,
+	type Model,
+	normalizeContext,
+	type Provider,
+	type SimpleStreamOptions,
+	type TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import { wrapAnthropicProvider } from "../src/anthropic-provider.ts";
 import { CLAUDE_CODE_VERSION } from "../src/claude-code-protocol.ts";
 
-const context: Context = {
+const context = normalizeContext({
 	systemPrompt: "Pi system",
 	messages: [
 		{ role: "user", content: "Reply with exactly: PROBE_OK", timestamp: 1 },
 	],
-};
+});
 const model = {
 	id: "claude-test",
 	provider: "anthropic",
@@ -27,22 +28,26 @@ const streamResult = {} as AssistantMessageEventStream;
 function fakeProvider() {
 	let streamOptions: ApiStreamOptions<Api> | undefined;
 	let simpleOptions: SimpleStreamOptions | undefined;
+	let streamModel: Model<Api> | undefined;
+	let simpleModel: Model<Api> | undefined;
 	const provider = {
 		id: "anthropic",
 		name: "Anthropic",
 		stream<T extends Api>(
-			_model: Model<T>,
-			_context: Context,
+			model: Model<T>,
+			_context: TranscriptContext,
 			options?: ApiStreamOptions<T>,
 		) {
-			streamOptions = options;
+			streamModel = model as Model<Api>;
+			streamOptions = options as ApiStreamOptions<Api> | undefined;
 			return streamResult;
 		},
 		streamSimple(
-			_model: Model<Api>,
-			_context: Context,
+			model: Model<Api>,
+			_context: TranscriptContext,
 			options?: SimpleStreamOptions,
 		) {
+			simpleModel = model;
 			simpleOptions = options;
 			return streamResult;
 		},
@@ -51,6 +56,8 @@ function fakeProvider() {
 		provider,
 		getStreamOptions: () => streamOptions,
 		getSimpleOptions: () => simpleOptions,
+		getStreamModel: () => streamModel,
+		getSimpleModel: () => simpleModel,
 	};
 }
 
@@ -64,6 +71,29 @@ describe("Anthropic provider wrapper", () => {
 		};
 		wrapped.streamSimple(model, context, options);
 		expect(fake.getSimpleOptions()).toBe(options);
+		expect(fake.getSimpleModel()).toBe(model);
+	});
+
+	it("disables message threads for OAuth requests", () => {
+		const fake = fakeProvider();
+		const wrapped = wrapAnthropicProvider(fake.provider, undefined);
+		const threaded = {
+			...model,
+			compat: { supportsMessageThreads: true, supportsTemperature: false },
+		} as Model<Api>;
+		const options = { apiKey: "sk-ant-oat-test" };
+		wrapped.stream(threaded, context, options);
+		wrapped.streamSimple(threaded, context, options);
+		for (const sent of [fake.getStreamModel(), fake.getSimpleModel()]) {
+			expect(sent?.compat).toEqual({
+				supportsMessageThreads: false,
+				supportsTemperature: false,
+			});
+		}
+		expect(threaded.compat).toEqual({
+			supportsMessageThreads: true,
+			supportsTemperature: false,
+		});
 	});
 
 	it("applies existing payload transforms before the final Pi Black transform", async () => {

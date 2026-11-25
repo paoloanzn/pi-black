@@ -1,18 +1,18 @@
-From 2c4dd9468e01065f30b98f83cd727fa891afc861 Mon Sep 17 00:00:00 2001
+From 7a1802f168769f641db4b8ef5ba2dd10c93fce30 Mon Sep 17 00:00:00 2001
 From: Paolo Anzani <paoloanzn@gmail.com>
 Date: Fri, 7 Aug 2026 18:58:51 +0200
 Subject: [PATCH] feat(coding-agent): customize Pi Black startup
 
 ---
- .../src/modes/interactive/interactive-mode.ts | 65 +++++--------------
- 1 file changed, 18 insertions(+), 47 deletions(-)
+ .../src/modes/interactive/interactive-mode.ts | 65 ++++++-------------
+ 1 file changed, 19 insertions(+), 46 deletions(-)
 
 diff --git a/packages/coding-agent/src/modes/interactive/interactive-mode.ts b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-index 720f9b0f..66c036cf 100644
+index e8b8552b1..e63e1f4fc 100644
 --- a/packages/coding-agent/src/modes/interactive/interactive-mode.ts
 +++ b/packages/coding-agent/src/modes/interactive/interactive-mode.ts
-@@ -219,12 +219,22 @@ function isDeadTerminalError(error: unknown): boolean {
- 	return code !== undefined && DEAD_TERMINAL_ERROR_CODES.has(code);
+@@ -331,12 +331,22 @@ export function formatCrashExtensionHint(extensionMatches: readonly string[] | u
+ 	return `A stack frame came from loaded ${noun} ${labels}, which may be involved. Try disabling ${pronoun} with \`${APP_NAME} config\`, or run \`${APP_NAME} -ne\` to confirm.`;
  }
  
 -const ANTHROPIC_SUBSCRIPTION_AUTH_WARNING =
@@ -40,27 +40,27 @@ index 720f9b0f..66c036cf 100644
  
  function isUnknownModel(model: Model<any> | undefined): boolean {
  	return !!model && model.provider === "unknown" && model.id === "unknown" && model.api === "unknown";
-@@ -425,7 +435,6 @@ export class InteractiveMode {
- 	private lastEscapeTime = 0;
- 	private changelogMarkdown: string | undefined = undefined;
+@@ -564,7 +574,6 @@ export class InteractiveMode {
  	private startupNoticesShown = false;
+ 	/** Last cache-warming notice, extended in place while it is the last chat line. */
+ 	private cacheWarmingNotice: { component: ThemedText; total: { cost: number }; note: string | undefined } | undefined;
 -	private anthropicSubscriptionWarningShown = false;
  
  	// Status line tracking (for mutating immediately-sequential status updates)
  	private lastStatusSpacer: Spacer | undefined = undefined;
-@@ -949,8 +958,8 @@ export class InteractiveMode {
- 				`Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.`,
+@@ -1166,7 +1175,9 @@ export class InteractiveMode {
+ 			if (showLogo) header.onLogoClick = (column, row) => playPiLogo3d(this.renderer, column, row);
+ 			this.builtInHeader = header;
+ 
+-			// Setup UI layout
++			// Setup UI layout. The raven is its own component so the header's logo click target stays on its first rows.
++			this.headerContainer.addChild(new Spacer(1));
++			this.headerContainer.addChild(new Text(PI_BLACK_RAVEN_BLUE, 1, 0));
+ 			this.headerContainer.addChild(new Spacer(1));
+ 			this.headerContainer.addChild(this.builtInHeader);
+ 			this.headerContainer.addChild(new Spacer(1));
+@@ -1313,8 +1324,6 @@ export class InteractiveMode {
  			);
- 			this.builtInHeader = new ExpandableText(
--				() => `${logo}\n${compactInstructions}\n${compactOnboarding}\n\n${onboarding}`,
--				() => `${logo}\n${expandedInstructions}\n\n${onboarding}`,
-+				() => `${PI_BLACK_RAVEN_BLUE}\n\n${logo}\n${compactInstructions}\n${compactOnboarding}\n\n${onboarding}`,
-+				() => `${PI_BLACK_RAVEN_BLUE}\n\n${logo}\n${expandedInstructions}\n\n${onboarding}`,
- 				this.getStartupExpansionState(),
- 				1,
- 				0,
-@@ -1064,8 +1073,6 @@ export class InteractiveMode {
- 			this.showWarning(modelFallbackMessage);
  		}
  
 -		void this.maybeWarnAboutAnthropicSubscriptionAuth();
@@ -68,7 +68,7 @@ index 720f9b0f..66c036cf 100644
  		// Process initial messages
  		if (initialMessage) {
  			try {
-@@ -4018,7 +4025,6 @@ export class InteractiveMode {
+@@ -4780,7 +4789,6 @@ export class InteractiveMode {
  				const thinkingStr =
  					result.model.reasoning && result.thinkingLevel !== "off" ? ` (thinking: ${result.thinkingLevel})` : "";
  				this.showStatus(`Switched to ${result.model.name || result.model.id}${thinkingStr}`);
@@ -76,15 +76,15 @@ index 720f9b0f..66c036cf 100644
  			}
  		} catch (error) {
  			this.showError(error instanceof Error ? error.message : String(error));
-@@ -4595,7 +4601,6 @@ export class InteractiveMode {
+@@ -5445,7 +5453,6 @@ export class InteractiveMode {
  				this.footer.invalidate();
  				this.updateEditorBorderColor();
  				this.showStatus(`Model: ${model.id}`);
 -				void this.maybeWarnAboutAnthropicSubscriptionAuth(model);
- 				this.checkDaxnutsEasterEgg(model);
  			} catch (error) {
  				this.showError(error instanceof Error ? error.message : String(error));
-@@ -4650,36 +4655,6 @@ export class InteractiveMode {
+ 			}
+@@ -5499,36 +5506,6 @@ export class InteractiveMode {
  		this.footerDataProvider.setAvailableProviderCount(uniqueProviders.size);
  	}
  
@@ -121,29 +121,28 @@ index 720f9b0f..66c036cf 100644
  	private maybeSaveImplicitProjectTrustAfterReload(): boolean {
  		const cwd = this.sessionManager.getCwd();
  		if (this.autoTrustOnReloadCwd !== cwd) {
-@@ -4746,7 +4721,6 @@ export class InteractiveMode {
- 						this.updateEditorBorderColor();
- 						done();
- 						this.showStatus(`Model: ${model.id}`);
--						void this.maybeWarnAboutAnthropicSubscriptionAuth(model);
- 						this.checkDaxnutsEasterEgg(model);
- 					} catch (error) {
- 						done();
-@@ -5450,14 +5424,11 @@ export class InteractiveMode {
- 		this.updateEditorBorderColor();
- 		if (selectedModel) {
- 			this.showStatus(`${actionLabel}. Selected ${selectedModel.id}. Credentials saved to ${getAuthPath()}`);
--			void this.maybeWarnAboutAnthropicSubscriptionAuth(selectedModel);
- 			this.checkDaxnutsEasterEgg(selectedModel);
- 		} else {
- 			this.showStatus(`${actionLabel}. Credentials saved to ${getAuthPath()}`);
- 			if (selectionError) {
- 				this.showError(selectionError);
--			} else {
--				void this.maybeWarnAboutAnthropicSubscriptionAuth();
+@@ -5590,7 +5567,6 @@ export class InteractiveMode {
+ 					this.updateEditorBorderColor();
+ 					done();
+ 					this.showStatus(persist ? `Default model: ${model.provider}/${model.id}` : `Model: ${model.id}`);
+-					void this.maybeWarnAboutAnthropicSubscriptionAuth(model);
+ 				} catch (error) {
+ 					done();
+ 					this.showError(error instanceof Error ? error.message : String(error));
+@@ -6371,13 +6347,10 @@ export class InteractiveMode {
+ 			this.updateEditorBorderColor();
+ 			if (selectedModel) {
+ 				this.showStatus(`${actionLabel}. Selected ${selectedModel.id}. Credentials saved to ${getAuthPath()}`);
+-				void this.maybeWarnAboutAnthropicSubscriptionAuth(selectedModel);
+ 			} else {
+ 				this.showStatus(`${actionLabel}. Credentials saved to ${getAuthPath()}`);
+ 				if (selectionError) {
+ 					this.showError(selectionError);
+-				} else {
+-					void this.maybeWarnAboutAnthropicSubscriptionAuth();
+ 				}
  			}
- 		}
- 
+ 		};
 -- 
-2.39.5 (Apple Git-154)
+2.43.0
 

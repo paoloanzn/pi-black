@@ -1,0 +1,70 @@
+From 0807e6c502bd3743cca1c3a6017b4d267a0c3aba Mon Sep 17 00:00:00 2001
+From: Pi OAuth Compatibility Maintainers <noreply@example.invalid>
+Date: Wed, 25 Nov 2026 13:02:59 +0000
+Subject: [PATCH] fix(ai): disable message threads for Claude Code OAuth
+ requests
+
+A continued message thread resends only the new messages and strips
+system and tools, which drops the Claude Code billing block and makes
+cch patching throw. Claude Code also never sends the thread field or
+the threads beta, so OAuth requests are always sent in full.
+---
+ packages/ai/src/api/anthropic-messages.ts     | 11 ++++++-----
+ packages/ai/test/anthropic-auth-token.test.ts | 12 ++++++++++++
+ 2 files changed, 18 insertions(+), 5 deletions(-)
+
+diff --git a/packages/ai/src/api/anthropic-messages.ts b/packages/ai/src/api/anthropic-messages.ts
+index ff216a42f..7ff29eb32 100644
+--- a/packages/ai/src/api/anthropic-messages.ts
++++ b/packages/ai/src/api/anthropic-messages.ts
+@@ -839,11 +839,6 @@ export const stream: StreamFunction<"anthropic-messages", AnthropicOptions> = (
+ 			let inputTransformations: BetaInputTransformation[] | undefined;
+ 			const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
+ 			const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
+-			// Session whose requests may use threads; undefined when threads don't apply. Sessions where
+-			// the endpoint rejected threads ("off") still send the threads beta, which the resend that
+-			// turned them off was accepted with; `prepareThreadRequest()` just sends no `thread`.
+-			const threadSessionId = compat.supportsMessageThreads ? cacheSessionId : undefined;
+-
+ 			if (options?.client) {
+ 				client = options.client;
+ 				isOAuth = false;
+@@ -874,6 +869,12 @@ export const stream: StreamFunction<"anthropic-messages", AnthropicOptions> = (
+ 				client = created.client;
+ 				isOAuth = created.isOAuthToken;
+ 			}
++			// Session whose requests may use threads; undefined when threads don't apply. Sessions where
++			// the endpoint rejected threads ("off") still send the threads beta, which the resend that
++			// turned them off was accepted with; `prepareThreadRequest()` just sends no `thread`.
++			// Claude Code OAuth requests never use threads: a continued thread drops `system`, and with it
++			// the billing block, and Claude Code sends neither the `thread` field nor the threads beta.
++			const threadSessionId = compat.supportsMessageThreads && !isOAuth ? cacheSessionId : undefined;
+ 			const billingHeader = isOAuth ? await buildClaudeCodeBillingHeader(normalizedContext.messages) : undefined;
+ 			const requestOptions = {
+ 				...(options?.signal ? { signal: options.signal } : {}),
+diff --git a/packages/ai/test/anthropic-auth-token.test.ts b/packages/ai/test/anthropic-auth-token.test.ts
+index fad8017f8..91959489f 100644
+--- a/packages/ai/test/anthropic-auth-token.test.ts
++++ b/packages/ai/test/anthropic-auth-token.test.ts
+@@ -213,6 +213,18 @@ describe("Anthropic auth token env", () => {
+ 		expect(headers["x-claude-code-session-id"]).toBe("11111111-2222-4333-8444-555555555555");
+ 	});
+ 
++	it("never uses message threads for Claude Code OAuth requests", async () => {
++		const sessionId = "11111111-2222-4333-8444-555555555555";
++		await streamAnthropic(anthropicModel, context, { apiKey: "sk-ant-api-test", sessionId }).result();
++		expect(mockState.createParams?.thread).toEqual({ type: "create" });
++
++		await streamAnthropic(anthropicModel, context, { apiKey: "sk-ant-oat-test", sessionId }).result();
++		expect(mockState.createParams?.thread).toBeUndefined();
++		expect(mockState.createParams?.betas).not.toContain("message-threads-2026-08-12");
++		const system = mockState.createParams?.system as Array<{ text: string }>;
++		expect(system[0].text).toMatch(/^x-anthropic-billing-header: /);
++	});
++
+ 	it("lets explicit request headers override ANTHROPIC_AUTH_TOKEN", async () => {
+ 		const models = createModels({
+ 			authContext: {
+-- 
+2.43.0
+

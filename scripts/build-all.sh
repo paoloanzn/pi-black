@@ -21,7 +21,7 @@ source_dir="$temporary_root/pi"
 "$repo_root/scripts/prepare-pi-source.sh" "$source_dir"
 cd "$source_dir"
 npm ci --ignore-scripts
-npx tsx packages/ai/scripts/generate-models.ts --strict
+npm run hydrate:model-data
 NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--experimental-strip-types" \
     "$source_dir/scripts/build-binaries.sh" --skip-install --offline-model-data --out "$output_dir"
 

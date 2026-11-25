@@ -1,4 +1,4 @@
-From f6c19f237db50ce98c63ec6647bdf01a8548adc5 Mon Sep 17 00:00:00 2001
+From 80357592dd401d3bb4829301a4458202880709c5 Mon Sep 17 00:00:00 2001
 From: Pi OAuth Compatibility Maintainers <noreply@example.invalid>
 Date: Fri, 7 Aug 2026 15:34:25 +0200
 Subject: [PATCH] feat(ai): add Claude Code OAuth request compatibility
@@ -6,9 +6,9 @@ Subject: [PATCH] feat(ai): add Claude Code OAuth request compatibility
 ---
  packages/ai/src/api/anthropic-claude-code.ts  | 160 ++++++++++++++++++
  packages/ai/src/api/anthropic-messages.ts     |  31 +++-
- packages/ai/test/anthropic-auth-token.test.ts |  32 ++++
+ packages/ai/test/anthropic-auth-token.test.ts |  33 ++++
  .../ai/test/anthropic-claude-code.test.ts     |  53 ++++++
- 4 files changed, 267 insertions(+), 9 deletions(-)
+ 4 files changed, 269 insertions(+), 8 deletions(-)
  create mode 100644 packages/ai/src/api/anthropic-claude-code.ts
  create mode 100644 packages/ai/test/anthropic-claude-code.test.ts
 
@@ -179,38 +179,44 @@ index 000000000..3b23b9062
 +	};
 +}
 diff --git a/packages/ai/src/api/anthropic-messages.ts b/packages/ai/src/api/anthropic-messages.ts
-index 047093746..4fb8478b8 100644
+index aa740822d..ff216a42f 100644
 --- a/packages/ai/src/api/anthropic-messages.ts
 +++ b/packages/ai/src/api/anthropic-messages.ts
-@@ -37,6 +37,7 @@ import { getProviderEnvValue } from "../utils/provider-env.ts";
- import { retryProviderRequest } from "../utils/provider-retry.ts";
- import { sanitizeSurrogates } from "../utils/sanitize-unicode.ts";
+@@ -60,6 +60,7 @@ import {
+ 	type TranscriptContext,
+ } from "../utils/transcript.ts";
  
 +import { buildClaudeCodeBillingHeader, CLAUDE_CODE_VERSION, createClaudeCodeFetch } from "./anthropic-claude-code.ts";
- import { resolveJsonSchemaStrictSampling } from "./constrained-sampling.ts";
- import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./github-copilot-headers.ts";
- import { adjustMaxTokensForThinking, buildBaseOptions, clampMaxTokensToContext } from "./simple-options.ts";
-@@ -72,9 +73,6 @@ function getCacheControl(
+ import {
+ 	getJsonSchemaToolParameters,
+ 	prefersJsonSchemaStrictSampling,
+@@ -105,9 +106,6 @@ function getCacheControl(
  	};
  }
  
 -// Stealth mode: Mimic Claude Code's tool naming exactly
--const claudeCodeVersion = "2.1.75";
+-const claudeCodeVersion = "2.1.322";
 -
  // Claude Code 2.x tool names (canonical casing)
  // Source: https://cchistory.mariozechner.at/data/prompts-2.1.11.md
  // To update: https://github.com/badlogic/cchistory
-@@ -546,7 +544,8 @@ export const stream: StreamFunction<"anthropic-messages", AnthropicOptions> = (
+@@ -876,6 +874,7 @@ export const stream: StreamFunction<"anthropic-messages", AnthropicOptions> = (
  				client = created.client;
  				isOAuth = created.isOAuthToken;
  			}
--			let params = buildParams(model, context, isOAuth, options);
-+			const billingHeader = isOAuth ? await buildClaudeCodeBillingHeader(context.messages) : undefined;
-+			let params = buildParams(model, context, isOAuth, options, billingHeader);
- 			const nextParams = await options?.onPayload?.(params, model);
- 			if (nextParams !== undefined) {
- 				params = nextParams as MessageCreateParamsStreaming;
-@@ -894,14 +893,15 @@ function createClient(
++			const billingHeader = isOAuth ? await buildClaudeCodeBillingHeader(normalizedContext.messages) : undefined;
+ 			const requestOptions = {
+ 				...(options?.signal ? { signal: options.signal } : {}),
+ 				...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+@@ -897,6 +896,7 @@ export const stream: StreamFunction<"anthropic-messages", AnthropicOptions> = (
+ 				const built = buildParams(model, normalizedContext, isOAuth, options, {
+ 					disablePreferredStrictTools,
+ 					messageThreads: threadSessionId !== undefined,
++					billingHeader,
+ 				});
+ 				if (built.providerThinkingLevel) output.providerThinkingLevel = built.providerThinkingLevel;
+ 				params = built.params;
+@@ -1295,13 +1295,14 @@ function createClient(
  			authToken: apiKey,
  			baseURL: model.baseUrl,
  			dangerouslyAllowBrowser: true,
@@ -220,7 +226,6 @@ index 047093746..4fb8478b8 100644
  				{
  					accept: "application/json",
  					"anthropic-dangerous-direct-browser-access": "true",
- 					"anthropic-beta": ["claude-code-20250219", "oauth-2025-04-20", ...betaFeatures].join(","),
 -					"user-agent": `claude-cli/${claudeCodeVersion}`,
 +					"user-agent": `claude-cli/${CLAUDE_CODE_VERSION} (external, sdk-cli)`,
  					"x-app": "cli",
@@ -228,19 +233,20 @@ index 047093746..4fb8478b8 100644
  				},
  				model.headers,
  				optionsHeaders,
-@@ -941,6 +941,7 @@ function buildParams(
- 	context: Context,
- 	isOAuthToken: boolean,
- 	options?: AnthropicOptions,
-+	billingHeader?: string,
- ): MessageCreateParamsStreaming {
- 	const { cacheControl } = getCacheControl(model, options?.cacheRetention, options?.env);
- 	const compat = getAnthropicCompat(model);
-@@ -975,10 +976,10 @@ function buildParams(
+@@ -1413,6 +1414,8 @@ interface BuildParamsFlags {
+ 	disablePreferredStrictTools: boolean;
+ 	/** The session uses message threads, so the threads beta is sent. */
+ 	messageThreads: boolean;
++	/** Claude Code attribution block placed first in the system prompt of OAuth requests. */
++	billingHeader?: string;
+ }
+ 
+ function buildParams(
+@@ -1488,10 +1491,10 @@ function buildParams(
  	// For OAuth tokens, we MUST include Claude Code identity
  	if (isOAuthToken) {
  		params.system = [
-+			...(billingHeader ? [{ type: "text" as const, text: billingHeader }] : []),
++			...(flags.billingHeader ? [{ type: "text" as const, text: flags.billingHeader }] : []),
  			{
  				type: "text",
 -				text: "You are Claude Code, Anthropic's official CLI for Claude.",
@@ -248,8 +254,8 @@ index 047093746..4fb8478b8 100644
 +				text: "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
  			},
  		];
- 		if (context.systemPrompt) {
-@@ -1055,7 +1056,19 @@ function buildParams(
+ 		if (initialSystemText) {
+@@ -1572,7 +1575,19 @@ function buildParams(
  		}
  	}
  
@@ -271,13 +277,14 @@ index 047093746..4fb8478b8 100644
  		if (typeof userId === "string") {
  			params.metadata = { user_id: userId };
 diff --git a/packages/ai/test/anthropic-auth-token.test.ts b/packages/ai/test/anthropic-auth-token.test.ts
-index e2780a175..69ec26f22 100644
+index a49108638..335aa509b 100644
 --- a/packages/ai/test/anthropic-auth-token.test.ts
 +++ b/packages/ai/test/anthropic-auth-token.test.ts
-@@ -166,6 +166,38 @@ describe("Anthropic auth token env", () => {
+@@ -178,6 +178,39 @@ describe("Anthropic auth token env", () => {
+ 		expect(mockState.constructorOpts?.apiKey).toBeNull();
  		expect(mockState.constructorOpts?.authToken).toBe("sk-ant-oat-test");
- 		const headers = mockState.constructorOpts?.defaultHeaders as Record<string, string>;
- 		expect(headers["anthropic-beta"]).toContain("oauth-2025-04-20");
+ 		expect(mockState.createParams?.betas).toContain("oauth-2025-04-20");
++		const headers = mockState.constructorOpts?.defaultHeaders as Record<string, string>;
 +		expect(headers["user-agent"]).toBe("claude-cli/2.1.224 (external, sdk-cli)");
 +		const system = mockState.createParams?.system as Array<{ text: string; cache_control?: unknown }>;
 +		expect(system[0].text).toMatch(
@@ -373,7 +380,7 @@ index 000000000..fd1a282fc
 +	});
 +});
 
-base-commit: 7aca0d7b3e041a9e2b635e8370b2549f032932d6
+base-commit: faac585884ae2c013a6b1400f3e9e77f10b34bac
 -- 
-2.39.5 (Apple Git-154)
+2.43.0
 

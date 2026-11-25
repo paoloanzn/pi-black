@@ -17,9 +17,8 @@ expected=(
     0001-feat-ai-add-Claude-Code-OAuth-request-compatibility.patch
     0002-fix-ai-harden-Claude-Code-cch-body-patching.patch
     0003-feat-coding-agent-customize-Pi-Black-startup.patch
-    0004-fix-ai-stabilize-Cloudflare-API-inference.patch
-    0005-fix-ai-update-Claude-Code-protocol-to-2.1.280.patch
-    0006-fix-ai-accept-renamed-Kimi-Coding-model-sources.patch
+    0004-fix-ai-update-Claude-Code-protocol-to-2.1.332.patch
+    0005-fix-ai-disable-message-threads-for-Claude-Code-OAuth.patch
     PI_BUILD_INPUTS.env
     BUILD.md
     PROVENANCE.txt
