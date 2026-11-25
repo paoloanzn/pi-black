@@ -53,6 +53,7 @@ Current subscription routing also works when that optional metadata is unavailab
 For Anthropic OAuth requests, Pi Black reproduces the version-specific SDK-CLI request shape:
 
 - exact billing and Agent SDK system-block ordering;
+- full requests without Pi's message threads, so every request keeps the billing block;
 - the prompt-dependent `cc_version` suffix;
 - structure-aware `cch` calculation using seeded XXH64;
 - per-request `x-client-request-id` values;
