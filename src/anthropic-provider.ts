@@ -13,6 +13,16 @@ import {
 	mergeClaudeCodeOptions,
 } from "./claude-code-protocol.ts";
 
+// Pi's message threads (pi-ai 1.5+) strip `system` and `tools` from continued
+// requests after `onPayload`, dropping the billing block, and add a `thread`
+// field and beta header that Claude Code never sends. OAuth requests always
+// go out as full, thread-less requests instead.
+// Older pi-ai versions neither type nor read the flag, hence the plain object.
+function withoutMessageThreads<T extends Api>(model: Model<T>): Model<T> {
+	const compat: object = { ...model.compat, supportsMessageThreads: false };
+	return { ...model, compat } as Model<T>;
+}
+
 export function wrapAnthropicProvider(
 	provider: Provider,
 	identity:
@@ -33,7 +43,7 @@ export function wrapAnthropicProvider(
 			if (!options || !isAnthropicOAuthToken(options.apiKey))
 				return provider.stream(model, context, options);
 			const transformed = mergeClaudeCodeOptions(options, context, identity);
-			return provider.stream(model, context, transformed);
+			return provider.stream(withoutMessageThreads(model), context, transformed);
 		},
 		streamSimple(
 			model: Model<Api>,
@@ -43,7 +53,7 @@ export function wrapAnthropicProvider(
 			if (!options || !isAnthropicOAuthToken(options.apiKey))
 				return provider.streamSimple(model, context, options);
 			return provider.streamSimple(
-				model,
+				withoutMessageThreads(model),
 				context,
 				mergeClaudeCodeOptions(options, context, identity),
 			);
